@@ -1,61 +1,36 @@
 import logging
 import json
-import paramiko
 import requests
+from hcloud import Client
+from hcloud.images import Image
+from hcloud.server_types import ServerType
+
+# Hetzner token and informations
+hcloudClient = Client(
+    token="E9uXEnSYs59rMIFuIwkuHDocRyDggBdx0USCCL9TFvWV86AZu2bIEf6IcjY2AXeb",  # Please paste your API token here
+    application_name="my-app",
+    application_version="v1.0.0",
+)
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 
 # Marzban Information
-print("Marzban Panel Information")
-DOMAIN = input("Please Enter Your Marzban Domain/IP: ")
-PORT = input("Please Enter Your Marzban Port: ")
-USERNAME = input("Please Enter Your Marzban Username: ")
-PASSWORD = input("Please Enter Your Marzban Password: ")
+DOMAIN = "myblog.intonature.tech"
+PORT = 443
+USERNAME = "z"
+PASSWORD = "z"
 HTTPS = True  # Set this to True for HTTPS, False for HTTP
-while True:
-    https_if_statment = input("Are You using HTTPS/SSL? (y/n): ").lower()
-    if https_if_statment == "y":
-        break
-    elif https_if_statment == "n":
-        HTTPS = False
-        break
-    else:
-        print("invalid value, try again...")
-ADD_AS_HOST = True # Set this to True if you want to add node on all hosts, otherwise set to False
-while True:
-    host_if_statment = input("Do you Want To Add This Node as a New Host For Every Inbound (y/n): ").lower()
-    if host_if_statment == "y":
-        break
-    elif host_if_statment == "n":
-        ADD_AS_HOST = False
-        break
-    else:
-        print("invalid value, try again...")
+
+ADD_AS_HOST = False  # Set this to True if you want to add node on all hosts, otherwise set to False
+
 # Node Server Configuration
-print("-" * 15)
-print("Node Server Information")
-SERVER_IP = input("Please Enter Your Node Server Domain/IP: ")
-SERVER_PORT = '22' # Default Port
-while True:
-    host_if_statment = input("Please Enter Your Node Server Port (Default : 22): ")
-    if host_if_statment == "":
-        break
-    else:
-        SERVER_PORT = host_if_statment
-        break
-SERVER_USER = 'root' # Default User
-while True:
-    host_if_statment = input("Please Enter Your Node Server User (Default : root): ")
-    if host_if_statment == "":
-        break
-    else:
-        SERVER_USER = host_if_statment
-        break
-SERVER_PASSWORD = input("Please Enter Your Node Server password: ")
+# print("-" * 15)
+# print("Node Server Information")
 
 # Create a reusable session
 session = requests.Session()
+
 
 def get_access_token(username, password):
     use_protocol = 'https' if HTTPS else 'http'
@@ -75,6 +50,7 @@ def get_access_token(username, password):
         logging.error(f'Error occurred while obtaining access token: {e}')
         return None
 
+
 def get_cert(access_token):
     use_protocol = 'https' if HTTPS else 'http'
     url = f'{use_protocol}://{DOMAIN}:{PORT}/api/node/settings'
@@ -91,15 +67,16 @@ def get_cert(access_token):
     except requests.exceptions.RequestException as e:
         logging.error(f'Error occurred while retrieving certificate: {e}')
         return None
-    
+
+
 def add_node(access_token, server_ip):
     use_protocol = 'https' if HTTPS else 'http'
     url = f'{use_protocol}://{DOMAIN}:{PORT}/api/node'
     node_information = {
         "name": f"{server_ip} - github.com/itsAML",
         "address": f"{server_ip}",
-        "port": 62050,
-        "api_port": 62051,
+        "port": 8530,
+        "api_port": 8531,
         "add_as_new_host": True if ADD_AS_HOST else False,
         "usage_coefficient": 1
     }
@@ -117,45 +94,65 @@ def add_node(access_token, server_ip):
         logging.error(f'Error occurred while adding node: {e}')
         return None
 
+
 # Certificate information
 access_token = get_access_token(USERNAME, PASSWORD)
 cert_info = get_cert(access_token)
 
 
-# Commands to execute
-commands = [
-    'sudo ufw disable',
-    'curl -fsSL https://get.docker.com | sh',
-    '[ -d Marzban-node ] && rm -r Marzban-node',
-    'git clone https://github.com/Gozargah/Marzban-node',
-    'cd Marzban-node && docker compose up -d && docker compose down && rm docker-compose.yml',
-    f'sudo echo "{cert_info}" > /var/lib/marzban-node/ssl_client_cert.pem',
-    'cd Marzban-node && sudo echo \'services:\n  marzban-node:\n    image: gozargah/marzban-node:latest\n    restart: always\n    network_mode: host\n    environment:\n      SSL_CERT_FILE: "/var/lib/marzban-node/ssl_cert.pem"\n      SSL_KEY_FILE: "/var/lib/marzban-node/ssl_key.pem"\n      SSL_CLIENT_CERT_FILE: "/var/lib/marzban-node/ssl_client_cert.pem"\n    volumes:\n      - /var/lib/marzban-node:/var/lib/marzban-node\' > docker-compose.yml && docker compose up -d'
-]
+def get_nodes(access_token):
+    use_protocol = 'https' if HTTPS else 'http'
+    url = f'{use_protocol}://{DOMAIN}:{PORT}/api/nodes'
+    headers = {
+        'accept': 'application/json',
+        'Authorization': f'Bearer {access_token}'
+    }
 
-# Establish SSH connection
-client = paramiko.SSHClient()
-client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    response = session.get(url, headers=headers)
+    response.raise_for_status()
+    return response.json()
 
-try:
-    client.connect(SERVER_IP, port=SERVER_PORT, username=SERVER_USER, password=SERVER_PASSWORD, timeout=4)
 
-    # Execute commands
-    for command in commands:
-        stdin, stdout, stderr = client.exec_command(command)
-        exit_status = stdout.channel.recv_exit_status()
-        if exit_status == 0:
-            print(f"Command '{command}' executed successfully.")
-        else:
-            print(f"Command '{command}' failed with exit status {exit_status}.")
-finally:
-    client.close()
+def delete_node(access_token, node_id):
+    use_protocol = 'https' if HTTPS else 'http'
+    url = f'{use_protocol}://{DOMAIN}:{PORT}/api/node/{node_id}'
+    headers = {
+        'accept': 'application/json',
+        'Authorization': f'Bearer {access_token}'
+    }
 
-try:
-    print("Adding Node To The Panel:")
-    add_node(access_token, SERVER_IP)
-except Exception as e:
-    pass
+    response = session.delete(url, headers=headers)
+    response.raise_for_status()
+    logging.info(f"Node {node_id} deleted successfully")
 
-# github.com/itsAML
-# @YoAML in Telegram
+
+def cleanup_disconnected_nodes(access_token):
+    nodes = get_nodes(access_token)
+
+    for node in nodes:
+        status = node.get("status")
+        node_id = node.get("id")
+        name = node.get("name")
+
+        if status in {"disconnected", "offline", "error", "disabled"}:
+            logging.warning(f"Removing node {name} (status={status})")
+            delete_node(access_token, node_id)
+
+
+access_token = get_access_token(USERNAME, PASSWORD)
+
+cleanup_disconnected_nodes(access_token)
+
+# # List your servers
+servers = hcloudClient.servers.get_all()
+if servers:
+    for server in servers:
+        print(server.public_net.ipv4.ip)
+
+        server_node_ip = server.public_net.ipv4.ip
+
+        try:
+            print("Adding Node To The Panel:")
+            add_node(access_token, server_node_ip)
+        except Exception as e:
+            pass
