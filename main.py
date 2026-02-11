@@ -6,8 +6,10 @@ from hcloud.images import Image
 from hcloud.server_types import ServerType
 from hcloud.locations import Location
 
+TKCLOUD = input("Please Enter Token: ")
+
 client = Client(
-    token="E9uXEnSYs59rMIFuIwkuHDocRyDggBdx0USCCL9TFvWV86AZu2bIEf6IcjY2AXeb",  # Please paste your API token here
+    token=TKCLOUD,  # Please paste your API token here
     application_name="my-app",
     application_version="v1.0.0",
 )
@@ -36,3 +38,4 @@ for i in range(1, 11):
 servers = client.servers.get_all()
 for server in servers:
     print(server.public_net.ipv4.ip)
+
