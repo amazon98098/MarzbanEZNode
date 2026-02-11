@@ -5,9 +5,11 @@ from hcloud import Client
 from hcloud.images import Image
 from hcloud.server_types import ServerType
 
+TKCLOUD = input("Please Enter Token: ")
+
 # Hetzner token and informations
 hcloudClient = Client(
-    token="E9uXEnSYs59rMIFuIwkuHDocRyDggBdx0USCCL9TFvWV86AZu2bIEf6IcjY2AXeb",  # Please paste your API token here
+    token=TKCLOUD,  # Please paste your API token here
     application_name="my-app",
     application_version="v1.0.0",
 )
@@ -30,7 +32,6 @@ ADD_AS_HOST = False  # Set this to True if you want to add node on all hosts, ot
 
 # Create a reusable session
 session = requests.Session()
-
 
 def get_access_token(username, password):
     use_protocol = 'https' if HTTPS else 'http'
